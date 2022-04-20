@@ -1,4 +1,4 @@
-module github.com/emillis/sessions
+module sessions
 
 go 1.18
 
