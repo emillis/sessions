@@ -88,18 +88,19 @@ func (s *Session) SetKey(key string) {
 	s.session.Key = key
 }
 
-//Timeout returns currently set timeout to invalidate this session if it hasn't been accessed in the defined period
+//Timeout returns duration in which, if the session is inactive, it goes invalid. Returns number of seconds
 func (s *Session) Timeout() int {
 	s.mx.RLock()
 	defer s.mx.RUnlock()
 	return s.session.Timeout
 }
 
-//SetTimeout sets number of seconds before this session becomes invalid if not used.
+//SetTimeout sets the duration of time until the session becomes invalid if not used.
 func (s *Session) SetTimeout(t time.Duration) {
 	s.mx.Lock()
-	defer s.mx.Unlock()
-	s.session.Timeout = timeInSeconds() + int(t.Seconds())
+	s.session.Timeout = int(t.Seconds())
+	s.mx.Unlock()
+	s.RefreshTimeout()
 }
 
 //Valid checks whether the session is still valid
@@ -114,6 +115,14 @@ func (s *Session) SetValid(status bool) {
 	s.mx.Lock()
 	defer s.mx.Unlock()
 	s.session.Valid = status
+}
+
+//RefreshTimeout refreshes time left until session goes invalid. It gives the session amount of time defined in
+//SetTimeout method
+func (s *Session) RefreshTimeout() {
+	s.mx.Lock()
+	defer s.mx.Unlock()
+	s.session.invalidateTime = timeInSeconds() + s.Timeout()
 }
 
 //SetSessionCookie sets cookie for the session in the ResponseWriter. The second cookie argument is optional and is used
