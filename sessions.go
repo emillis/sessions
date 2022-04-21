@@ -26,14 +26,10 @@ type session struct {
 
 	//Defines a period of time in which the session becomes invalid if not used.
 	//Default value for this is set to 8 hours
-	Timeout int `json:"timeout" bson:"timeout"`
+	TimeoutDuration int `json:"timeout" bson:"timeout"`
 
-	//Marks session valid/invalid
-	Valid bool `json:"valid" bson:"valid"`
-
-	//TODO: Implement this
-	//Time when this session should be invalidated (Valid changed to false)
-	invalidateTime int
+	//Time when this session should be invalidated (Valid() returns false)
+	ValidUntil int
 
 	mx sync.RWMutex
 }
@@ -88,41 +84,30 @@ func (s *Session) SetKey(key string) {
 	s.session.Key = key
 }
 
-//Timeout returns duration in which, if the session is inactive, it goes invalid. Returns number of seconds
-func (s *Session) Timeout() int {
+//TimeoutDuration returns duration in which, if the session is inactive, it goes invalid. Returns duration in seconds
+func (s *Session) TimeoutDuration() int {
 	s.mx.RLock()
 	defer s.mx.RUnlock()
-	return s.session.Timeout
+	return s.session.TimeoutDuration
 }
 
-//SetTimeout sets the duration of time until the session becomes invalid if not used.
-func (s *Session) SetTimeout(t time.Duration) {
+//SetTimeoutDuration sets the duration of time until the session becomes invalid if not used.
+func (s *Session) SetTimeoutDuration(t time.Duration) {
 	s.mx.Lock()
-	s.session.Timeout = int(t.Seconds())
+	s.session.TimeoutDuration = int(t.Seconds())
 	s.mx.Unlock()
 	s.RefreshTimeout()
 }
 
 //Valid checks whether the session is still valid
 func (s *Session) Valid() bool {
-	s.mx.RLock()
-	defer s.mx.RUnlock()
-	return s.session.Valid
-}
-
-//SetValid sets the state of the session valid/invalid
-func (s *Session) SetValid(status bool) {
-	s.mx.Lock()
-	defer s.mx.Unlock()
-	s.session.Valid = status
+	return timeInSeconds() < s.ValidUntil()
 }
 
 //RefreshTimeout refreshes time left until session goes invalid. It gives the session amount of time defined in
-//SetTimeout method
+//SetValidUntil method
 func (s *Session) RefreshTimeout() {
-	s.mx.Lock()
-	defer s.mx.Unlock()
-	s.session.invalidateTime = timeInSeconds() + s.Timeout()
+	s.SetValidUntil(timeInSeconds() + s.TimeoutDuration())
 }
 
 //SetSessionCookie sets cookie for the session in the ResponseWriter. The second cookie argument is optional and is used
@@ -139,6 +124,21 @@ func (s *Session) SetSessionCookie(w http.ResponseWriter, cookie *http.Cookie) {
 	http.SetCookie(w, cookie)
 }
 
+//ValidUntil returns timestamp in seconds when this session will become invalid
+func (s *Session) ValidUntil() int {
+	s.mx.RLock()
+	defer s.mx.RUnlock()
+	return s.session.ValidUntil
+}
+
+//SetValidUntil updates timestamp in seconds when this session will become invalid. It essentially does the calculation
+//(ValidUntil = (current time in seconds) + TimeoutDuration())
+func (s *Session) SetValidUntil(t int) {
+	s.mx.Lock()
+	defer s.mx.Unlock()
+	s.session.ValidUntil = t
+}
+
 //===========[FUNCTIONALITY]====================================================================================================
 
 //New creates a new session with default values already pre-filled
@@ -149,7 +149,7 @@ func New() *Session {
 
 	s.GenerateNewUid()
 	s.SetKey("")
-	s.SetTimeout(time.Second * 28800)
+	s.SetTimeoutDuration(time.Second * 28800)
 
 	return s
 }
