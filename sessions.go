@@ -26,10 +26,13 @@ type session struct {
 
 	//Defines a period of time in which the session becomes invalid if not used.
 	//Default value for this is set to 8 hours
-	TimeoutDuration int `json:"timeout" bson:"timeout"`
+	TimeoutDuration time.Duration `json:"timeout_duration" bson:"timeout_duration"`
 
 	//Time when this session should be invalidated (Valid() returns false)
-	ValidUntil int
+	ValidUntil time.Time `json:"valid_until" bson:"valid_until"`
+
+	//Holds the time when this session was modified last
+	LastModified time.Time `json:"last_modified" bson:"last_modified"`
 
 	mx sync.RWMutex
 }
@@ -49,8 +52,9 @@ func (s *Session) Uid() string {
 //SetUid custom defined Uid for the session
 func (s *Session) SetUid(uid string) {
 	s.mx.Lock()
-	defer s.mx.Unlock()
 	s.session.Uid = uid
+	s.mx.Unlock()
+	s.UpdateLastModified()
 }
 
 //GenerateNewUid generates new Uid and replaces the current one
@@ -62,9 +66,7 @@ func (s *Session) GenerateNewUid() {
 			continue
 		}
 
-		s.mx.Lock()
-		s.session.Uid = newUid
-		s.mx.Unlock()
+		s.SetUid(newUid)
 		break
 	}
 }
@@ -79,13 +81,13 @@ func (s *Session) Key() string {
 //SetKey assigns new key for the session
 func (s *Session) SetKey(key string) {
 	s.mx.Lock()
-	defer s.mx.Unlock()
-
 	s.session.Key = key
+	s.mx.Unlock()
+	s.UpdateLastModified()
 }
 
 //TimeoutDuration returns duration in which, if the session is inactive, it goes invalid. Returns duration in seconds
-func (s *Session) TimeoutDuration() int {
+func (s *Session) TimeoutDuration() time.Duration {
 	s.mx.RLock()
 	defer s.mx.RUnlock()
 	return s.session.TimeoutDuration
@@ -94,20 +96,21 @@ func (s *Session) TimeoutDuration() int {
 //SetTimeoutDuration sets the duration of time until the session becomes invalid if not used.
 func (s *Session) SetTimeoutDuration(t time.Duration) {
 	s.mx.Lock()
-	s.session.TimeoutDuration = int(t.Seconds())
+	s.session.TimeoutDuration = t
 	s.mx.Unlock()
 	s.RefreshTimeout()
+	s.UpdateLastModified()
 }
 
 //Valid checks whether the session is still valid
 func (s *Session) Valid() bool {
-	return timeInSeconds() < s.ValidUntil()
+	return time.Now().Before(s.ValidUntil())
 }
 
 //RefreshTimeout refreshes time left until session goes invalid. It gives the session amount of time defined in
 //SetValidUntil method
 func (s *Session) RefreshTimeout() {
-	s.SetValidUntil(timeInSeconds() + s.TimeoutDuration())
+	s.SetValidUntil(time.Now().Add(s.TimeoutDuration()))
 }
 
 //SetSessionCookie sets cookie for the session in the ResponseWriter. The second cookie argument is optional and is used
@@ -125,7 +128,7 @@ func (s *Session) SetSessionCookie(w http.ResponseWriter, cookie *http.Cookie) {
 }
 
 //ValidUntil returns timestamp in seconds when this session will become invalid
-func (s *Session) ValidUntil() int {
+func (s *Session) ValidUntil() time.Time {
 	s.mx.RLock()
 	defer s.mx.RUnlock()
 	return s.session.ValidUntil
@@ -133,10 +136,35 @@ func (s *Session) ValidUntil() int {
 
 //SetValidUntil updates timestamp in seconds when this session will become invalid. It essentially does the calculation
 //(ValidUntil = (current time in seconds) + TimeoutDuration())
-func (s *Session) SetValidUntil(t int) {
+func (s *Session) SetValidUntil(t time.Time) {
+	s.mx.Lock()
+	s.session.ValidUntil = t
+	s.mx.Unlock()
+	s.UpdateLastModified()
+}
+
+//LastModified returns time when this session was modified the last
+func (s *Session) LastModified() time.Time {
+	s.mx.RLock()
+	defer s.mx.RUnlock()
+	return s.session.LastModified
+}
+
+//UpdateLastModified Sets LastModified field to the time when this function gets invoked
+func (s *Session) UpdateLastModified() {
 	s.mx.Lock()
 	defer s.mx.Unlock()
-	s.session.ValidUntil = t
+	s.session.LastModified = time.Now()
+}
+
+//saveToCache saves this session to local cache
+func (s *Session) saveToCache() {
+	uidToSession[s.Uid()] = s
+}
+
+//removeFromCache deletes the session from local cache
+func (s *Session) removeFromCache() {
+	delete(uidToSession, s.Uid())
 }
 
 //===========[FUNCTIONALITY]====================================================================================================
@@ -150,6 +178,7 @@ func New() *Session {
 	s.GenerateNewUid()
 	s.SetKey("")
 	s.SetTimeoutDuration(time.Second * 28800)
+	s.saveToCache()
 
 	return s
 }
@@ -179,11 +208,6 @@ func GetFromRequest(r *http.Request, key string) *Session {
 func doesUidExist(uid string) bool {
 
 	return false
-}
-
-//Returns current time in seconds
-func timeInSeconds() int {
-	return int(time.Now().UnixNano() / 1000000000)
 }
 
 //===========[INITIALIZATION]====================================================================================================
