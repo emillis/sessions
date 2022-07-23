@@ -1,20 +1,22 @@
 package sessions
 
 import (
+	"github.com/emillis/cacheMachine"
 	"github.com/emillis/idGen"
 	"net/http"
 	"sync"
 	"time"
 )
 
-//===========[CACHE/STATIC]====================================================================================================
+//===========[CACHE/STATIC]=============================================================================================
 
-//Maps Uid to session's address
-var uidToSession map[string]*Session
+var _sessionCache cacheMachine.Cache[string, *Session]
+var _modifiedSessions cacheMachine.Cache[string, *Session]
 
+//DefaultKey is the default key used in key:value pairs such as cookie.Name
 const DefaultKey = "_ssid"
 
-//===========[STRUCTURES]====================================================================================================
+//===========[STRUCTURES]===============================================================================================
 
 //Unexported session definition. Kept private to disable direct access to the session
 type session struct {
@@ -155,19 +157,21 @@ func (s *Session) UpdateLastModified() {
 	s.mx.Lock()
 	defer s.mx.Unlock()
 	s.session.LastModified = time.Now()
+	_modifiedSessions.Add(s.Uid(), s)
 }
 
 //saveToCache saves this session to local cache
 func (s *Session) saveToCache() {
-	uidToSession[s.Uid()] = s
+	_sessionCache.Add(s.Uid(), s)
 }
 
 //removeFromCache deletes the session from local cache
 func (s *Session) removeFromCache() {
-	delete(uidToSession, s.Uid())
+	_sessionCache.Remove(s.Uid())
+	_modifiedSessions.Remove(s.Uid())
 }
 
-//===========[FUNCTIONALITY]====================================================================================================
+//===========[FUNCTIONALITY]============================================================================================
 
 //New creates a new session with default values already pre-filled
 func New() *Session {
@@ -180,12 +184,14 @@ func New() *Session {
 	s.SetTimeoutDuration(time.Second * 28800)
 	s.saveToCache()
 
+	modifiedSessions.Add(s)
+
 	return s
 }
 
 //Get returns pointer to a session or nil if not found
 func Get(uid string) *Session {
-	return uidToSession[uid]
+	return _sessionCache.Get(uid)
 }
 
 //GetFromRequest finds session id defined in the request's cookies. Custom key can be defined. If key left empty,
@@ -210,9 +216,10 @@ func doesUidExist(uid string) bool {
 	return false
 }
 
-//===========[INITIALIZATION]====================================================================================================
+//===========[INITIALIZATION]===========================================================================================
 
 //Initializing sessions
 func init() {
-	uidToSession = make(map[string]*Session)
+	_sessionCache = cacheMachine.New[string, *Session](nil)
+	_modifiedSessions = cacheMachine.New[string, *Session](nil)
 }
