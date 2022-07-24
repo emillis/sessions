@@ -59,20 +59,6 @@ func (s *Session) SetUid(uid string) {
 	s.UpdateLastModified()
 }
 
-//GenerateNewUid generates new Uid and replaces the current one
-func (s *Session) GenerateNewUid() {
-	for {
-		newUid := idGen.Random(&idGen.Config{Length: 99})
-
-		if doesUidExist(newUid) {
-			continue
-		}
-
-		s.SetUid(newUid)
-		break
-	}
-}
-
 //Key returns session key that can be used as cookie name, etc..
 func (s *Session) Key() string {
 	s.mx.RLock()
@@ -176,22 +162,26 @@ func (s *Session) removeFromCache() {
 //New creates a new session with default values already pre-filled
 func New() *Session {
 	s := &Session{session{
-		mx: sync.RWMutex{},
+		mx:  sync.RWMutex{},
+		Uid: generateUid(),
 	}}
 
-	s.GenerateNewUid()
 	s.SetKey("")
 	s.SetTimeoutDuration(time.Second * 28800)
 	s.saveToCache()
 
-	modifiedSessions.Add(s)
+	uid := s.Uid()
+
+	_sessionCache.Add(uid, s)
+	_modifiedSessions.Add(uid, s)
 
 	return s
 }
 
 //Get returns pointer to a session or nil if not found
 func Get(uid string) *Session {
-	return _sessionCache.Get(uid)
+	s, _ := _sessionCache.Get(uid)
+	return s
 }
 
 //GetFromRequest finds session id defined in the request's cookies. Custom key can be defined. If key left empty,
@@ -214,6 +204,19 @@ func GetFromRequest(r *http.Request, key string) *Session {
 func doesUidExist(uid string) bool {
 
 	return false
+}
+
+//Generates and returns new unique UID
+func generateUid() string {
+	for {
+		newUid := idGen.Random(&idGen.Config{Length: 99})
+
+		if doesUidExist(newUid) {
+			continue
+		}
+
+		return newUid
+	}
 }
 
 //===========[INITIALIZATION]===========================================================================================
