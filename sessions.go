@@ -10,8 +10,15 @@ import (
 
 //===========[CACHE/STATIC]=============================================================================================
 
+//Every pointer to a Session structure will be stored here
 var _sessionCache cacheMachine.Cache[string, *Session]
+
+//Only purpose of this cache is to store pointers to Sessions that were modified. This cache is going to be used only
+//for updating the database where instead of saving the entire cache, only the modified ones will be updated
 var _modifiedSessions cacheMachine.Cache[string, *Session]
+
+//When checking for UID existence, possible unique ID will be stored here until determined that it's indeed unique
+var _tmpUidStore cacheMachine.Cache[string, bool]
 
 //DefaultKey is the default key used in key:value pairs such as cookie.Name
 const DefaultKey = "_ssid"
