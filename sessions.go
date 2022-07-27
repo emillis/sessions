@@ -14,6 +14,7 @@ import (
 var defaultRequirements = Requirements{
 	DefaultKey: "_ssid",
 	Timeout:    0,
+	UidExist:   func(uid string) bool { return false },
 }
 
 //===========[INTERFACES]====================================================================================================
@@ -31,8 +32,15 @@ type ISession[TValue any] interface {
 
 //Requirements outline the base setup of a SessionStore
 type Requirements struct {
-	DefaultKey string        `json:"default_key" bson:"default_key"`
-	Timeout    time.Duration `json:"timeout" bson:"timeout"`
+	//Sessions are usually "key":"value" pairs and so, this would be the default "key" in the "key":"value" pair
+	DefaultKey string `json:"default_key" bson:"default_key"`
+
+	//Timout defines amount of time after which the session gets automatically removed if UpdateLastModified() not called
+	Timeout time.Duration `json:"timeout" bson:"timeout"`
+
+	//Here you can define a function that would check for existence of the UID other than locally within SessionStore.
+	//For example, check for existence in the Database or other caches
+	UidExist func(string) bool
 }
 
 //Unexported session store where all the related sessions will be cached
@@ -60,7 +68,7 @@ type SessionStore[TValue any] struct {
 
 //New creates new session in this store with the Value supplied and returns pointer to it
 func (ss *SessionStore[TValue]) New(data TValue) ISession[TValue] {
-	uid := generateUid()
+	uid := generateUid(ss)
 
 	s := &Session[TValue]{session[TValue]{
 		Uid:   uid,
@@ -79,12 +87,6 @@ func (ss *SessionStore[TValue]) New(data TValue) ISession[TValue] {
 func (ss *SessionStore[TValue]) Get(uid string) ISession[TValue] {
 	//TODO: Check if zero value returned from GetEntry makes it panic.
 	return ss._sessions.GetEntry(uid).Value()
-}
-
-//Remove removes session based on the uid supplied
-func (ss *SessionStore[TValue]) Remove(uid string) {
-	ss._sessions.Remove(uid)
-	ss._modifiedSessions.Remove(uid)
 }
 
 //GetFromHttpRequest returns session if UID was specified in the http.Request cookies
@@ -106,6 +108,17 @@ func (ss *SessionStore[TValue]) GetFromHttpRequest(r *http.Request) ISession[TVa
 	return s
 }
 
+//Remove removes session based on the uid supplied
+func (ss *SessionStore[TValue]) Remove(uid string) {
+	ss._sessions.Remove(uid)
+	ss._modifiedSessions.Remove(uid)
+}
+
+//Exist checks whether supplied uid exist in the cache
+func (ss *SessionStore[TValue]) Exist(uid string) bool {
+	return ss._sessions.Exist(uid)
+}
+
 //Unexported session definition. Kept private to disable direct access to the session
 type session[TValue any] struct {
 	//This is the unique identifier of the session. It is by default, 99 alphanumeric chars + some special symbols
@@ -123,6 +136,11 @@ type session[TValue any] struct {
 	store *SessionStore[TValue]
 
 	mx sync.RWMutex
+}
+
+//Updates last modified field in this session, but this method is not protected by a mutex
+func (s *session[TValue]) updateLastModified() {
+	s.LastModified = time.Now()
 }
 
 //Session structure that defines an individual session
@@ -148,8 +166,8 @@ func (s *Session[TValue]) Value() TValue {
 func (s *Session[TValue]) SetValue(v TValue) {
 	s.mx.Lock()
 	s.session.Value = v
+	s.session.updateLastModified()
 	s.mx.Unlock()
-	s.UpdateLastModified()
 }
 
 //Key returns session key that can be used as cookie name, etc..
@@ -183,7 +201,7 @@ func (s *Session[TValue]) LastModified() time.Time {
 //UpdateLastModified Sets LastModified field to the time when this function gets invoked
 func (s *Session[TValue]) UpdateLastModified() {
 	s.mx.Lock()
-	s.session.LastModified = time.Now()
+	s.session.updateLastModified()
 	s.mx.Unlock()
 	s.store._modifiedSessions.Add(s.Uid(), s)
 }
@@ -198,6 +216,10 @@ func makeRequirementsReasonable(r *Requirements) *Requirements {
 
 	if r.Timeout == 0 {
 		r.Timeout = defaultRequirements.Timeout
+	}
+
+	if r.UidExist == nil {
+		r.UidExist = defaultRequirements.UidExist
 	}
 
 	return r
@@ -222,20 +244,17 @@ func New[TValue any](r *Requirements) *SessionStore[TValue] {
 	return s
 }
 
-//TODO: Implement uid existence check
 //doesUidExist checks the cache and db whether the uid already exist
-func doesUidExist(uid string) bool {
-
-	return false
+func doesUidExist[TValue any](ss *SessionStore[TValue], uid string) bool {
+	return ss._sessions.Exist(uid) || ss._tmpUidStore.Exist(uid) || ss.Requirements.UidExist(uid)
 }
 
-//TODO: get this to take in SessionStore as an argument so it could find all the existing UIDs
 //Generates and returns new unique UID
-func generateUid() string {
+func generateUid[TValue any](ss *SessionStore[TValue]) string {
 	for {
 		newUid := idGen.Random(&idGen.Config{Length: 99})
 
-		if doesUidExist(newUid) {
+		if doesUidExist(ss, newUid) {
 			continue
 		}
 
