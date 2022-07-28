@@ -17,7 +17,7 @@ var defaultRequirements = Requirements{
 	UidExist:   func(uid string) bool { return false },
 }
 
-//===========[INTERFACES]====================================================================================================
+//===========[INTERFACES]===============================================================================================
 
 type ISession[TValue any] interface {
 	Uid() string
@@ -177,19 +177,19 @@ func (s *Session[TValue]) Key() string {
 	return s.session.Key
 }
 
-//SetSessionCookie sets cookie for the session in the ResponseWriter. The second cookie argument is optional and is used
+//SetHttpCookie sets cookie for the session in the ResponseWriter. The second cookie argument is optional and is used
 //to have some default values set by the client. In essence, this function would override the Name and Value fields of
 //the supplied cookie with the session values
-//func (s *Session[TValue]) SetSessionCookie(w http.ResponseWriter, cookie *http.Cookie) {
-//	if cookie == nil {
-//		cookie = &http.Cookie{}
-//	}
-//
-//	cookie.Name = s.Key()
-//	cookie.Value = s.Uid()
-//
-//	http.SetCookie(w, cookie)
-//}
+func (s *Session[TValue]) SetHttpCookie(w http.ResponseWriter, cookie *http.Cookie) {
+	if cookie == nil {
+		cookie = &http.Cookie{}
+	}
+
+	cookie.Name = s.Key()
+	cookie.Value = s.Uid()
+
+	http.SetCookie(w, cookie)
+}
 
 //LastModified returns time when this session was modified the last
 func (s *Session[TValue]) LastModified() time.Time {
