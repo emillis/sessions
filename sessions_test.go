@@ -28,3 +28,13 @@ func TestNew(t *testing.T) {
 		t.Errorf("Function New() with Requirements supplied was expected to return a *SessionStore, got nil")
 	}
 }
+
+func TestSessionStore_New(t *testing.T) {
+	ss := initializeSessionStore(10, nil)
+
+	s := ss.New("1")
+
+	if s == nil {
+		t.Errorf("Expecten method New to return a Session, got nil")
+	}
+}
