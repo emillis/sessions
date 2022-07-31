@@ -38,3 +38,15 @@ func TestSessionStore_New(t *testing.T) {
 		t.Errorf("Expecten method New to return a Session, got nil")
 	}
 }
+
+func TestSessionStore_Get(t *testing.T) {
+   ss := initializeSessionStore(0, nil)
+
+   s := ss.New("1")
+
+   v := ss.Get(s.Uid())
+
+   if v == nil {
+      t.Errorf("Expected v to have ISession interface returned, got nil")
+   }
+}
