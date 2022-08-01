@@ -40,13 +40,50 @@ func TestSessionStore_New(t *testing.T) {
 }
 
 func TestSessionStore_Get(t *testing.T) {
-   ss := initializeSessionStore(0, nil)
+	ss := initializeSessionStore(0, nil)
 
-   s := ss.New("1")
+	s1Uid := ss.New("1").Uid()
 
-   v := ss.Get(s.Uid())
+	v := ss.Get(s1Uid)
+	v2 := ss.Get("test")
 
-   if v == nil {
-      t.Errorf("Expected v to have ISession interface returned, got nil")
-   }
+	if v == nil {
+		t.Errorf("Expected v to have ISession interface returned, got nil")
+	}
+
+	if v2 != nil {
+		t.Errorf("Expected v2 to be nil, but got a value")
+	}
+}
+
+func TestSessionStore_Exist(t *testing.T) {
+	ss := initializeSessionStore(0, nil)
+
+	randomUid := "this_should_not_work"
+
+	s1Uid := ss.New("1").Uid()
+
+	if ss.Exist(randomUid) {
+		t.Errorf("Session with UID \"%s\" shouldn't be present in the SessionStore, but it is", randomUid)
+	}
+
+	if !ss.Exist(s1Uid) {
+		t.Errorf("Session with UID \"%s\" should be in the cache, but it is not", s1Uid)
+	}
+}
+
+func TestSessionStore_Remove(t *testing.T) {
+	ss := initializeSessionStore(0, nil)
+
+	s1Uid := ss.New("1").Uid()
+
+	if ss.Get(s1Uid) == nil {
+		t.Errorf("Session with UID \"%s\" should exist in the SessionStore, but it does not", s1Uid)
+	}
+
+	ss.Remove(s1Uid)
+
+	if ss.Get(s1Uid) != nil {
+		t.Errorf("Session with UID \"%s\" shouldn't exist in the SessionStore, but it does", s1Uid)
+	}
 }
