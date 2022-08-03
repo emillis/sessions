@@ -19,6 +19,10 @@ var defaultRequirements = Requirements{
 
 //===========[INTERFACES]===============================================================================================
 
+type Cookie interface {
+	Cookie(string) (*http.Cookie, error)
+}
+
 type ISession[TValue any] interface {
 	Uid() string
 	Value() TValue
@@ -93,13 +97,13 @@ func (ss *SessionStore[TValue]) Get(uid string) ISession[TValue] {
 	return ss._sessions.GetEntry(uid).Value()
 }
 
-//GetFromHttpRequest returns session if UID was specified in the http.Request cookies
-func (ss *SessionStore[TValue]) GetFromHttpRequest(r *http.Request) ISession[TValue] {
-	if r == nil {
+//GetFromCookie returns session if UID was specified in the http.Request cookies
+func (ss *SessionStore[TValue]) GetFromCookie(c Cookie) ISession[TValue] {
+	if c == nil {
 		return nil
 	}
 
-	cookie, err := r.Cookie(ss.Requirements.DefaultKey)
+	cookie, err := c.Cookie(ss.Requirements.DefaultKey)
 	if err != nil {
 		return nil
 	}

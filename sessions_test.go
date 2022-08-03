@@ -1,6 +1,7 @@
 package sessions
 
 import (
+	"net/http"
 	"testing"
 )
 
@@ -12,6 +13,14 @@ func initializeSessionStore(n int, r *Requirements) *SessionStore[string] {
 	}
 
 	return s
+}
+
+type testHttpRequest struct {
+	cookie *http.Cookie
+}
+
+func (t *testHttpRequest) Cookie(s string) (*http.Cookie, error) {
+	return t.cookie, nil
 }
 
 //===========[TESTING]====================================================================================================
@@ -85,5 +94,25 @@ func TestSessionStore_Remove(t *testing.T) {
 
 	if ss.Get(s1Uid) != nil {
 		t.Errorf("Session with UID \"%s\" shouldn't exist in the SessionStore, but it does", s1Uid)
+	}
+}
+
+func TestSessionStore_GetFromCookie(t *testing.T) {
+	testVal := "hi mom!"
+	ss := initializeSessionStore(0, nil)
+	s := ss.New(testVal)
+
+	testRequest := testHttpRequest{&http.Cookie{}}
+	testRequest.cookie.Value = s.Uid()
+	testRequest.cookie.Name = s.Key()
+
+	nSess := ss.GetFromCookie(&testRequest)
+
+	if nSess == nil {
+		t.Errorf("There was suppoed to be a Session returned from cookie, but got nil")
+	}
+
+	if nSess.Value() != testVal {
+		t.Errorf("Expected to receive value \"%s\", got \"%s\"", testVal, nSess.Value())
 	}
 }
