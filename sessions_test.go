@@ -116,3 +116,15 @@ func TestSessionStore_GetFromCookie(t *testing.T) {
 		t.Errorf("Expected to receive value \"%s\", got \"%s\"", testVal, nSess.Value())
 	}
 }
+
+func TestSession_SetUid(t *testing.T) {
+	ss := initializeSessionStore(0, nil)
+	s := ss.New("test_1")
+	newUid := "this_is_new_uid"
+
+	s.SetUid(newUid)
+
+	if s.Uid() != newUid {
+		t.Errorf("Expected the new UID to be \"%s\", got \"%s\"", newUid, s.Uid())
+	}
+}

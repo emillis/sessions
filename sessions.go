@@ -25,6 +25,7 @@ type Cookie interface {
 
 type ISession[TValue any] interface {
 	Uid() string
+	SetUid(uid string)
 	Value() TValue
 	Key() string
 	SetValue(v TValue)
@@ -160,6 +161,13 @@ func (s *Session[TValue]) Uid() string {
 	s.mx.RLock()
 	defer s.mx.RUnlock()
 	return s.session.Uid
+}
+
+//SetUid sets new uid for this session
+func (s *Session[TValue]) SetUid(uid string) {
+	s.mx.Lock()
+	defer s.mx.Unlock()
+	s.session.Uid = uid
 }
 
 //Value returns value stored under this uid
