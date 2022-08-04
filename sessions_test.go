@@ -128,3 +128,15 @@ func TestSession_SetUid(t *testing.T) {
 		t.Errorf("Expected the new UID to be \"%s\", got \"%s\"", newUid, s.Uid())
 	}
 }
+
+func TestSession_SetKey(t *testing.T) {
+	ss := initializeSessionStore(0, nil)
+	s := ss.New("one")
+	newKey := "this_is_the_new_key"
+
+	s.SetKey(newKey)
+
+	if s.Key() != newKey {
+		t.Errorf("Key was expected to be \"%s\", got \"%s\"", newKey, s.Key())
+	}
+}

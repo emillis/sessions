@@ -28,6 +28,7 @@ type ISession[TValue any] interface {
 	SetUid(uid string)
 	Value() TValue
 	Key() string
+	SetKey(k string)
 	SetValue(v TValue)
 	LastModified() time.Time
 	UpdateLastModified()
@@ -190,6 +191,13 @@ func (s *Session[TValue]) Key() string {
 	s.mx.RLock()
 	defer s.mx.RUnlock()
 	return s.session.Key
+}
+
+//SetKey sets new key for this session
+func (s *Session[TValue]) SetKey(k string) {
+	s.mx.Lock()
+	defer s.mx.Unlock()
+	s.session.Key = k
 }
 
 //SetHttpCookie sets cookie for the session in the ResponseWriter. The second cookie argument is optional and is used
