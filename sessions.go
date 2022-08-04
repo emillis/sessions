@@ -89,12 +89,11 @@ func (ss *SessionStore[TValue]) New(data TValue) ISession[TValue] {
 
 //Get returns Session based on the UID provided
 func (ss *SessionStore[TValue]) Get(uid string) ISession[TValue] {
-	//TODO: Once the bug with cacheMachine having to do with Cache.Get() is fixed, use that instead
-	if !ss._sessions.Exist(uid) {
+	if e := ss._sessions.GetEntry(uid); e == nil {
 		return nil
+	} else {
+		return e.Value()
 	}
-
-	return ss._sessions.GetEntry(uid).Value()
 }
 
 //GetFromCookie returns session if UID was specified in the http.Request cookies

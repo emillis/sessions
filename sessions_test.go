@@ -61,7 +61,7 @@ func TestSessionStore_Get(t *testing.T) {
 	}
 
 	if v2 != nil {
-		t.Errorf("Expected v2 to be nil, but got a value")
+		t.Errorf("Expected v2 to be nil, got %T", v2)
 	}
 }
 
