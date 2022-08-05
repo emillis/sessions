@@ -48,6 +48,7 @@ func (s *Session[TValue]) Uid() string {
 func (s *Session[TValue]) SetUid(uid string) {
 	s.mx.Lock()
 	defer s.mx.Unlock()
+	s.session.updateLastModified()
 	s.session.Uid = uid
 }
 
@@ -77,6 +78,7 @@ func (s *Session[TValue]) Key() string {
 func (s *Session[TValue]) SetKey(k string) {
 	s.mx.Lock()
 	defer s.mx.Unlock()
+	s.session.updateLastModified()
 	s.session.Key = k
 }
 
