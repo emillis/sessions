@@ -25,3 +25,22 @@ type Requirements struct {
 	//For example, check for existence in the Database or other caches
 	UidExist func(string) bool
 }
+
+//===========[FUNCTIONALITY]====================================================================================================
+
+//Checks whether Requirements don't have problematic values
+func makeRequirementsReasonable(r *Requirements) *Requirements {
+	if r.DefaultKey == "" {
+		r.DefaultKey = defaultRequirements.DefaultKey
+	}
+
+	if r.Timeout == 0 {
+		r.Timeout = defaultRequirements.Timeout
+	}
+
+	if r.UidExist == nil {
+		r.UidExist = defaultRequirements.UidExist
+	}
+
+	return r
+}
