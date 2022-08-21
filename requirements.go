@@ -30,6 +30,11 @@ type Requirements struct {
 
 //Checks whether Requirements don't have problematic values
 func makeRequirementsReasonable(r *Requirements) *Requirements {
+	if r == nil {
+		tmpReq := defaultRequirements
+		return &tmpReq
+	}
+
 	if r.DefaultKey == "" {
 		r.DefaultKey = defaultRequirements.DefaultKey
 	}
